@@ -9,11 +9,14 @@ from PIL import Image
 
 from model_llm import LLMReceiptExtractor
 
+logger = logging.getLogger(__name__)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
 )
+
+
 try:
     extractor = LLMReceiptExtractor()
     logger.info("LLM extractor initialized successfully")
@@ -22,21 +25,15 @@ except ValueError as e:
     logger.error("Make sure GROQ_API_KEY is set in environment variables")
     extractor = None
 
-
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB upload limit
 
 ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "webp", "bmp", "tiff"}
 
-# Model is loaded once at startup and reused across requests
-extractor = LLMReceiptExtractor()
-
 
 def allowed_file(filename: str) -> bool:
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
-
-# ── Routes ───────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
@@ -45,6 +42,9 @@ def index():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
+    if not extractor:
+        return jsonify({"error": "Extractor not initialized - check API key"}), 500
+        
     if "image" not in request.files:
         return jsonify({"error": "No image field in request"}), 400
 
@@ -87,8 +87,6 @@ def status():
         "api_configured": extractor is not None,
     })
 
-
-# ── Entry point ──────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     import os
