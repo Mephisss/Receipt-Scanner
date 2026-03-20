@@ -14,7 +14,13 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
 )
-logger = logging.getLogger(__name__)
+try:
+    extractor = LLMReceiptExtractor()
+    logger.info("LLM extractor initialized successfully")
+except ValueError as e:
+    logger.error(f"Failed to initialize extractor: {e}")
+    logger.error("Make sure GROQ_API_KEY is set in environment variables")
+    extractor = None
 
 
 app = Flask(__name__)
@@ -77,8 +83,8 @@ def status():
     """Health check."""
     return jsonify({
         "status": "ok",
-        "model": extractor.model,
-        "api_configured": extractor.api_key is not None,
+        "model": extractor.model if extractor else "not initialized",
+        "api_configured": extractor is not None,
     })
 
 
