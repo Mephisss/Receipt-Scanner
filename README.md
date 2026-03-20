@@ -1,6 +1,7 @@
 # Receipt Scanner
 
 Data extractor from pictures of store receipts
+<img width="1219" height="656" alt="image" src="https://github.com/user-attachments/assets/c00040de-38c6-4e45-8169-6d1cfd3b98b8" />
 
 ## Setup
 
