@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Receipt Scanner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0c0a;
+      --surface:   #0f130f;
+      --border:    #1f2d1f;
+      --green:     #39ff6a;
+      --green-dim: #1a7a35;
+      --amber:     #f5a623;
+      --red:       #ff4444;
+      --text:      #c8e6c9;
+      --muted:     #4a6a4a;
+      --scan-line: rgba(0,0,0,0.08);
+      --glow:      0 0 12px rgba(57,255,106,0.25);
+      --glow-strong: 0 0 24px rgba(57,255,106,0.5);
+    }
+
+    html { font-size: 14px; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem 4rem;
+      background-image:
+        repeating-linear-gradient(
+          0deg,
+          var(--scan-line) 0px,
+          var(--scan-line) 1px,
+          transparent 1px,
+          transparent 4px
+        );
+    }
+
+    header {
+      width: 100%;
+      max-width: 800px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1rem;
+      margin-bottom: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+    }
+
+    .logo {
+      font-family: 'Space Mono', monospace;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--green);
+      text-shadow: var(--glow);
+      letter-spacing: 0.05em;
+    }
+
+    .logo span { color: var(--muted); font-weight: 400; }
+
+    .status-badge {
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green-dim);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .status-dot.ready { background: var(--green); box-shadow: var(--glow); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+
+    main {
+      width: 100%;
+      max-width: 800px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    #drop-zone {
+      border: 1px dashed var(--border);
+      border-radius: 4px;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #drop-zone::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(57,255,106,0.02) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    #drop-zone:hover,
+    #drop-zone.drag-over {
+      border-color: var(--green-dim);
+      background: rgba(57,255,106,0.03);
+    }
+
+    #drop-zone.drag-over { border-color: var(--green); }
+
+    .drop-icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+      display: block;
+      color: var(--green-dim);
+    }
+
+    .drop-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.9rem;
+      color: var(--green);
+      margin-bottom: 0.4rem;
+    }
+
+    .drop-sub {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    #file-input { display: none; }
+
+
+    #preview-wrap {
+      display: none;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+
+    #preview-wrap.visible { display: flex; }
+
+    #preview-img {
+      width: 160px;
+      min-width: 160px;
+      border-radius: 2px;
+      border: 1px solid var(--border);
+      object-fit: contain;
+      background: var(--surface);
+    }
+
+    .preview-meta {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding-top: 0.25rem;
+    }
+
+    .preview-filename {
+      font-size: 0.8rem;
+      color: var(--green);
+      word-break: break-all;
+    }
+
+    .preview-info { font-size: 0.72rem; color: var(--muted); }
+
+    #analyze-btn {
+      margin-top: auto;
+      background: transparent;
+      border: 1px solid var(--green-dim);
+      color: var(--green);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.85rem;
+      padding: 0.5rem 1.25rem;
+      cursor: pointer;
+      letter-spacing: 0.1em;
+      transition: all 0.15s;
+      align-self: flex-start;
+    }
+
+    #analyze-btn:hover:not(:disabled) {
+      background: rgba(57,255,106,0.08);
+      border-color: var(--green);
+      box-shadow: var(--glow);
+    }
+
+    #analyze-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+/* terminal */
+    #log-panel {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+      min-height: 2.5rem;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+
+    #log-panel.visible { display: block; }
+
+    .log-line { display: block; }
+    .log-line.ok   { color: var(--green); }
+    .log-line.warn { color: var(--amber); }
+    .log-line.err  { color: var(--red); }
+
+    /* Blinking cursor */
+    .cursor {
+      display: inline-block;
+      width: 8px; height: 1em;
+      background: var(--green);
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink { 50% { opacity: 0; } }
+
+/* card */
+    #results {
+      display: none;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+    }
+
+    #results.visible { display: block; }
+
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .results-title {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.8rem;
+      color: var(--green);
+      letter-spacing: 0.05em;
+    }
+
+    .confidence-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+
+    .conf-track {
+      width: 80px; height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .conf-fill {
+      height: 100%;
+      background: var(--green);
+      border-radius: 2px;
+      transition: width 0.6s ease;
+    }
+
+    .results-body { padding: 1.25rem; }
+
+    .store-block {
+      border-bottom: 1px dashed var(--border);
+      padding-bottom: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .store-name {
+      font-family: 'Space Mono', monospace;
+      font-size: 1rem;
+      color: var(--green);
+      text-shadow: var(--glow);
+      margin-bottom: 0.2rem;
+    }
+
+    .store-meta { font-size: 0.72rem; color: var(--muted); line-height: 1.7; }
+
+    .items-label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      margin-bottom: 0.6rem;
+    }
+
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .items-table th {
+      text-align: left;
+      color: var(--muted);
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .items-table th:last-child { text-align: right; }
+
+    .items-table td {
+      padding: 0.35rem 0;
+      border-bottom: 1px solid rgba(31,45,31,0.5);
+      vertical-align: top;
+    }
+
+    .items-table td:last-child { text-align: right; color: var(--green); }
+
+    .item-name { color: var(--text); }
+    .item-qty  { color: var(--muted); font-size: 0.72rem; }
+
+    .totals-block {
+      border-top: 1px solid var(--border);
+      padding-top: 0.75rem;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.25rem;
+      font-size: 0.8rem;
+    }
+
+    .total-row {
+      display: flex;
+      gap: 2rem;
+      justify-content: flex-end;
+      width: 100%;
+      max-width: 240px;
+    }
+
+    .total-row .label { color: var(--muted); flex: 1; }
+    .total-row .value { color: var(--text); min-width: 70px; text-align: right; }
+
+    .total-row.grand .label,
+    .total-row.grand .value {
+      color: var(--green);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.95rem;
+      text-shadow: var(--glow);
+    }
+
+
+    .timing {
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.68rem;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+/* json */
+    .raw-toggle {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.7rem;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      padding: 0;
+    }
+    .raw-toggle:hover { color: var(--green); }
+
+    #raw-json {
+      display: none;
+      margin-top: 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      padding: 0.75rem;
+      font-size: 0.7rem;
+      color: var(--muted);
+      overflow-x: auto;
+      white-space: pre;
+      border-radius: 2px;
+    }
+
+    #raw-json.visible { display: block; }
+
+    .empty-items {
+      color: var(--muted);
+      font-size: 0.75rem;
+      padding: 0.5rem 0;
+    }
+
+    @media (max-width: 520px) {
+      #preview-wrap { flex-direction: column; }
+      #preview-img  { width: 100%; min-width: unset; }
+    }
+  </style>
+</head>
+
+<!-- ################################################## -->
+<!-- ################################################## -->
+<!-- ################################################## -->
+<!-- ################################################## -->
+<!-- ################################################## -->
+<!-- ################################################## -->
+
+
+<body>
+
+  <header>
+    <div class="logo">Receipt Scanner</div>
+    <div class="status-badge">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">INITIALISING</span>
+    </div>
+  </header>
+
+  <main>
+
+<!-- upload -->
+    <div id="drop-zone" role="button" tabindex="0" aria-label="Upload receipt image">
+      <span class="drop-icon">⬡</span>
+      <div class="drop-title">DROP RECEIPT IMAGE HERE</div>
+      <div class="drop-sub">or click to browse &nbsp;·&nbsp; jpg / png / webp / bmp / tiff</div>
+      <input type="file" id="file-input" accept="image/*" />
+    </div>
+
+    <div id="preview-wrap">
+      <img id="preview-img" alt="Receipt preview" />
+      <div class="preview-meta">
+        <div class="preview-filename" id="preview-name">—</div>
+        <div class="preview-info" id="preview-size">—</div>
+        <button id="analyze-btn">[ ANALYSE ]</button>
+      </div>
+    </div>
+
+<!-- log -->
+    <div id="log-panel"></div>
+
+    <div id="results">
+      <div class="results-header">
+        <div class="results-title">// EXTRACTION COMPLETE</div>
+        <div class="confidence-bar">
+          <span id="conf-label">0%</span>
+          <div class="conf-track"><div class="conf-fill" id="conf-fill" style="width:0%"></div></div>
+          <span>CONF</span>
+        </div>
+      </div>
+      <div class="results-body">
+
+        <div class="store-block">
+          <div class="store-name" id="r-store">—</div>
+          <div class="store-meta">
+            <span id="r-address"></span><br>
+            <span id="r-datetime"></span>
+          </div>
+        </div>
+
+        <div class="items-label">LINE ITEMS</div>
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>ITEM</th>
+              <th>QTY</th>
+              <th>PRICE</th>
+            </tr>
+          </thead>
+          <tbody id="items-body"></tbody>
+        </table>
+
+        <div class="totals-block">
+          <div class="total-row"><span class="label">SUBTOTAL</span><span class="value" id="r-subtotal">—</span></div>
+          <div class="total-row"><span class="label">TAX</span><span class="value" id="r-tax">—</span></div>
+          <div class="total-row grand"><span class="label">TOTAL</span><span class="value" id="r-total">—</span></div>
+        </div>
+
+        <div class="timing">
+          <span id="r-timing">—</span>
+          <button class="raw-toggle" id="raw-btn">[ VIEW RAW JSON ]</button>
+        </div>
+        <pre id="raw-json"></pre>
+
+      </div>
+    </div>
+
+  </main>
+
+
+<!-- ################################################## -->
+<!-- ################################################## -->
+<!-- ################################################## -->
+<!-- ################################################## -->
+<!-- ################################################## -->
+<!-- ################################################## -->
+
+
+  <script>
+    const dropZone    = document.getElementById('drop-zone');
+    const fileInput   = document.getElementById('file-input');
+    const previewWrap = document.getElementById('preview-wrap');
+    const previewImg  = document.getElementById('preview-img');
+    const previewName = document.getElementById('preview-name');
+    const previewSize = document.getElementById('preview-size');
+    const analyzeBtn  = document.getElementById('analyze-btn');
+    const logPanel    = document.getElementById('log-panel');
+    const results     = document.getElementById('results');
+    const rawBtn      = document.getElementById('raw-btn');
+    const rawJson     = document.getElementById('raw-json');
+    const statusDot   = document.getElementById('status-dot');
+    const statusText  = document.getElementById('status-text');
+
+    let selectedFile = null;
+
+    async function checkStatus() {
+      try {
+        const res = await fetch('/status');
+        const data = await res.json();
+        if (data.model_loaded) {
+          statusDot.classList.add('ready');
+          statusText.textContent = `READY · ${data.device.toUpperCase()}`;
+        } else {
+          statusText.textContent = 'MODEL NOT LOADED';
+        }
+      } catch {
+        statusText.textContent = 'SERVER OFFLINE';
+      }
+    }
+
+    checkStatus();
+    setInterval(checkStatus, 10000);
+
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) handleFile(file);
+    });
+
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) handleFile(fileInput.files[0]);
+    });
+
+    function handleFile(file) {
+      selectedFile = file;
+      const url = URL.createObjectURL(file);
+      previewImg.src = url;
+      previewName.textContent = file.name;
+      previewSize.textContent = `${(file.size / 1024).toFixed(1)} KB · ${file.type || 'image'}`;
+      previewWrap.classList.add('visible');
+      results.classList.remove('visible');
+      logPanel.classList.remove('visible');
+      logPanel.innerHTML = '';
+    }
+
+    function log(msg, type = '') {
+      logPanel.classList.add('visible');
+      const line = document.createElement('span');
+      line.className = `log-line ${type}`;
+      line.textContent = `> ${msg}`;
+
+      const old = logPanel.querySelector('.cursor');
+      if (old) old.remove();
+      logPanel.appendChild(line);
+      logPanel.appendChild(document.createTextNode('\n'));
+
+      const cur = document.createElement('span');
+      cur.className = 'cursor';
+      logPanel.appendChild(cur);
+      logPanel.scrollTop = logPanel.scrollHeight;
+    }
+
+    function removeCursor() {
+      const cur = logPanel.querySelector('.cursor');
+      if (cur) cur.remove();
+    }
+
+
+    analyzeBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+
+      analyzeBtn.disabled = true;
+      results.classList.remove('visible');
+      logPanel.innerHTML = '';
+
+      log('Preparing image …');
+      await tick();
+
+      const formData = new FormData();
+      formData.append('image', selectedFile);
+
+      log('Sending to the AI model …');
+      await tick();
+
+      const t0 = performance.now();
+
+      try {
+        const res = await fetch('/analyze', { method: 'POST', body: formData });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }));
+          removeCursor();
+          log(`ERROR: ${err.error}`, 'err');
+          analyzeBtn.disabled = false;
+          return;
+        }
+
+        const data = await res.json();
+        const clientMs = Math.round(performance.now() - t0);
+
+        removeCursor();
+        log(`Model inference: ${data.processing_time_s}s`, 'ok');
+        log(`Items extracted: ${data.items.length}`, 'ok');
+        log(`Confidence: ${data.confidence.toFixed(1)}%`, 'ok');
+        log('Rendering results …', 'ok');
+
+        renderResults(data, clientMs);
+
+      } catch (e) {
+        removeCursor();
+        log(`Network error: ${e.message}`, 'err');
+      }
+
+      analyzeBtn.disabled = false;
+    });
+
+
+    function renderResults(data, clientMs) {
+
+      document.getElementById('r-store').textContent =
+        data.store_name || '[ STORE NOT DETECTED ]';
+      document.getElementById('r-address').textContent =
+        data.store_address || '';
+      const dt = [data.date, data.time].filter(Boolean).join('  ');
+      document.getElementById('r-datetime').textContent = dt || '';
+
+
+      const conf = Math.round(data.confidence);
+      document.getElementById('conf-label').textContent = `${conf}%`;
+      document.getElementById('conf-fill').style.width = `${conf}%`;
+
+
+      const tbody = document.getElementById('items-body');
+      tbody.innerHTML = '';
+
+      if (data.items && data.items.length > 0) {
+        data.items.forEach(item => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><span class="item-name">${esc(item.name)}</span></td>
+            <td><span class="item-qty">×${esc(item.quantity)}</span></td>
+            <td>${formatMoney(item.total_price)}</td>
+          `;
+          tbody.appendChild(tr);
+        });
+      } else {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td colspan="3" class="empty-items">No line items detected</td>`;
+        tbody.appendChild(tr);
+      }
+
+
+      document.getElementById('r-subtotal').textContent = formatMoney(data.subtotal);
+      document.getElementById('r-tax').textContent      = formatMoney(data.tax);
+      document.getElementById('r-total').textContent    = formatMoney(data.total);
+
+
+      document.getElementById('r-timing').textContent =
+        `server: ${data.processing_time_s}s · round-trip: ${clientMs}ms · device: ${data.device || '—'}`;
+
+
+      rawJson.textContent = JSON.stringify(data.raw_json, null, 2);
+      rawJson.classList.remove('visible');
+      rawBtn.textContent = '[ VIEW RAW JSON ]';
+
+      results.classList.add('visible');
+      results.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    rawBtn.addEventListener('click', () => {
+      const open = rawJson.classList.toggle('visible');
+      rawBtn.textContent = open ? '[ HIDE RAW JSON ]' : '[ VIEW RAW JSON ]';
+    });
+
+
+    const tick = () => new Promise(r => setTimeout(r, 0));
+
+    function esc(str) {
+      return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    function formatMoney(val) {
+      const n = parseFloat(val) || 0;
+      return n > 0 ? `€${n.toFixed(2)}` : '—';
+    }
+  </script>
+</body>
+</html>
