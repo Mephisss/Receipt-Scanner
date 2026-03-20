@@ -1,9 +1,3 @@
-"""
-Flask server for receipt extraction using Groq Vision LLM.
-Run with:  python app_fixed.py
-Then open: http://localhost:5000
-"""
-
 import io
 import json
 import logging
@@ -15,14 +9,14 @@ from PIL import Image
 
 from model_llm import LLMReceiptExtractor
 
-# ── Logging ──────────────────────────────────────────────────────────────────
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
 )
 logger = logging.getLogger(__name__)
 
-# ── App setup ────────────────────────────────────────────────────────────────
+
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16 MB upload limit
 
@@ -45,11 +39,6 @@ def index():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    """
-    POST /analyze
-    Body: multipart/form-data with field 'image'
-    Returns: JSON with extracted receipt data
-    """
     if "image" not in request.files:
         return jsonify({"error": "No image field in request"}), 400
 
@@ -64,7 +53,6 @@ def analyze():
         }), 415
 
     try:
-        # Read image from upload stream (no disk write needed)
         image_bytes = file.read()
         image = Image.open(io.BytesIO(image_bytes))
 
