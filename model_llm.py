@@ -1,9 +1,3 @@
-"""
-LLM Vision-based receipt extraction model.
-Uses Groq's Llama Vision model for accurate extraction of any receipt format.
-Works with Austrian, German, and international receipts.
-"""
-
 import re
 import json
 import logging
@@ -20,16 +14,12 @@ logger = logging.getLogger(__name__)
 
 
 class LLMReceiptExtractor:
-    """
-    Uses a vision-capable LLM to extract receipt data.
-    Much better at handling diverse receipt formats than domain-specific models.
-    """
 
     def __init__(self, api_key: Optional[str] = None, model: str = "meta-llama/llama-4-scout-17b-16e-instruct"):
         """
         Args:
             api_key: Groq API key (or set GROQ_API_KEY env var)
-            model: Vision model to use (llama-3.2-90b-vision-preview or llama-3.2-11b-vision-preview)
+            model: Vision model to use (meta-llama/llama-4-scout-17b-16e-instruct or llama-3.2-11b-vision-preview)
         """
         self.api_key = api_key or self._get_api_key()
         self.model = model
@@ -38,10 +28,8 @@ class LLMReceiptExtractor:
 
     @staticmethod
     def _get_api_key() -> str:
-        """Get API key from environment or config."""
         key = os.environ.get("GROQ_API_KEY")
-        if not key:
-# env
+        if not key:    # env
             env_file = Path(".env")
             if env_file.exists():
                 for line in env_file.read_text().splitlines():
@@ -56,27 +44,17 @@ class LLMReceiptExtractor:
         return key
 
     def _image_to_base64(self, image: Image.Image) -> str:
-        """Convert PIL Image to base64 string."""
-        buffered = BytesIO()
-# remove alpha
+        buffered = BytesIO()# remove alpha
         if image.mode in ('RGBA', 'LA', 'P'):
             image = image.convert('RGB')
         image.save(buffered, format="JPEG", quality=95)
         return base64.b64encode(buffered.getvalue()).decode()
 
     def extract(self, image: Image.Image) -> dict:
-        """
-        Extract receipt data using vision LLM.
-        
-        Returns a normalized dict with keys:
-            store_name, store_address, date, time,
-            items, subtotal, tax, total, savings, payment_method
-        """
+    
         image_b64 = self._image_to_base64(image)
         
-        prompt = self._build_prompt()
-        
-# API
+        prompt = self._build_prompt()# API
         try:
             logger.info("Calling Groq Vision API...")
             response = requests.post(
